@@ -56,12 +56,12 @@ def create_windows(data, len_window):
     
     
     
-def build_lstm_model():
+def build_lstm_model(base_neurons, window):
     model = tf.keras.models.Sequential([
-        tf.keras.layers.LSTM(50, input_shape=(99, 1), return_sequences=True ),
-        tf.keras.layers.Dropout(0.02),
+        tf.keras.layers.LSTM(base_neurons, input_shape=(window-1, 1), return_sequences=True ),
+        tf.keras.layers.Dropout(0.05),
         tf.keras.layers.LSTM(100),
-        tf.keras.layers.Dropout(0.02),
+        tf.keras.layers.Dropout(0.05),
         tf.keras.layers.Dense(1, "linear")
     ])  
     model.compile(optimizer="adam",
@@ -70,11 +70,11 @@ def build_lstm_model():
     return model
 
 
-def train_lstm_model(model, X_train, y_train, callback=None):
+def train_lstm_model(model, X_train, y_train, epochs=2, callback=None):
     if callback==None:
-        model.fit(X_train, y_train, batch_size=32, epochs=3, verbose=2)
+        model.fit(X_train, y_train, batch_size=32, epochs=epochs, verbose=2)
     else:
-        model.fit(X_train, y_train, batch_size=32, epochs=3, verbose=2,
+        model.fit(X_train, y_train, batch_size=32, epochs=epochs, verbose=2,
                   callbacks=callback)
 
     return model
@@ -91,7 +91,6 @@ def predict_sequence(model, X_test):
     window = X_test[0]
     window_len = len(window)
     for i in range(len(X_test)):
-        #print("do_ml//predict_sequence//for loop "+str(i))
 
         sequence.append(model.predict(window[np.newaxis,:,:])[0,0])
         window = window[1:]
@@ -109,18 +108,22 @@ def create_callback(checkpoint_path):
     return cp_callback
 
 
-def do_ml(from_cp=False):
-    train, test = load_data("sinewave.csv")
-    X_train, y_train = create_windows(train, 100)
-    X_test, y_test = create_windows(test, 100)
-    model = build_lstm_model()
+def do_ml(data_type, base_neurons, window, epochs=2, from_cp=False):
+    if data_type == "sinewave":
+        train, test = load_data("sinewave.csv")
+    if data_type == "double_sinewave":
+        train, test = load_data("double_sinewave.csv")
+    X_train, y_train = create_windows(train, window)
+    X_test, y_test = create_windows(test, window)
+    model = build_lstm_model(base_neurons, window)
+    cp_path="{}/base_neurons{}/window{}/epochs{}.ckpt".format(data_type,
     if from_cp:
         model.load_weights("training/cp.ckpt")
         print("loaded model from weights")
     else:
         print("making model from scratch")
         callback = create_callback("sinewave/lower_dropout/3_epochs.ckpt")
-        train_lstm_model(model, X_train, y_train, callback=[callback])
+        train_lstm_model(model, X_train, y_train, epochs=epochs, callback=[callback])
     
     predicted = predict_sequence(model, X_test[0:2000])
     f = open("results.csv", 'w')
